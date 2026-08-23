@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: duduk
+    runtime: python
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.14.3
+      # Задаются вручную в Render Dashboard -> Environment (Secret):
+      - key: TELEGRAM_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_PATH
+        sync: false
+      # Формат: cloudinary://<api_key>:<api_secret>@<cloud_name>
+      # Взять на dashboard.cloudinary.com -> Account Details.
+      - key: CLOUDINARY_URL
+        sync: false
+
+# ВАЖНО: free-план Render не поддерживает persistent disk - локальная ФС
+# стирается при каждом деплое и когда сервис "засыпает" и просыпается.
+# orders.db (заказы, статистика) живёт только до следующего деплоя/рестарта.
+# Фото товаров вынесены в Cloudinary (CLOUDINARY_URL выше) и переживают
+# редеплой независимо от диска Render.

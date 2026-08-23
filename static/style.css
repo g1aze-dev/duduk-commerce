@@ -1,0 +1,19 @@
+/* DUDUK — дополнительные глобальные стили */
+/* Основные стили встроены в шаблоны для надёжности */
+
+* { box-sizing: border-box; }
+
+/* Плавный скролл */
+html { scroll-behavior: smooth; }
+
+/* Полоса прокрутки */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* Фокус для доступности */
+:focus-visible { outline: 2px solid #e8472a; outline-offset: 2px; }
+
+/* Выделение текста */
+::selection { background: rgba(232, 71, 42, 0.3); color: #fff; }
