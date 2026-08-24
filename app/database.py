@@ -46,12 +46,15 @@ async def init_db():
     """Создаёт таблицы при запуске + миграция image_url"""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        # Миграция: добавить image_url если отсутствует
-        try:
-            await conn.execute(text("ALTER TABLE menu_items ADD COLUMN image_url VARCHAR(500)"))
-        except Exception:
-            pass  # Колонка уже существует
 
+    # Отдельная транзакция: на Postgres ошибка внутри транзакции ("колонка
+    # уже есть") переводит её в aborted-состояние и ломает любые следующие
+    # команды в том же блоке — в отличие от SQLite, где это было безобидно.
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("ALTER TABLE menu_items ADD COLUMN image_url VARCHAR(500)"))
+    except Exception:
+        pass  # колонка уже существует
 async def save_order(order_data: dict) -> int:
     """Сохраняет заказ в БД"""
     async with AsyncSessionLocal() as session:
