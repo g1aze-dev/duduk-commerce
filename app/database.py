@@ -37,6 +37,12 @@ if _raw_url:
     parts = urlsplit(_raw_url)
     query = dict(parse_qsl(parts.query))
     sslmode = query.pop("sslmode", None)
+    # Neon добавляет ещё и channel_binding (и иногда options) — это тоже
+    # параметры libpq/psycopg, которых asyncpg.connect() не знает и падает
+    # с TypeError на неожиданный keyword argument. Просто выкидываем всё,
+    # что не является настройками самого Postgres-сервера/БД.
+    for _unsupported in ("channel_binding", "options"):
+        query.pop(_unsupported, None)
     DATABASE_URL = urlunsplit(parts._replace(query=urlencode(query)))
     if sslmode and sslmode != "disable":
         connect_args = {"ssl": True}
