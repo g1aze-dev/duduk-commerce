@@ -7,28 +7,50 @@ from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from .schemas import MenuItem
+from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 
 import os
 
-# На Render (и похожих PaaS) файловая система контейнера эфемерна —
-# всё, что лежит рядом с кодом, стирается при каждом деплое/перезапуске.
-# Чтобы orders.db не терялась, путь можно переопределить переменной
-# окружения DATA_DIR (указать на подключённый persistent disk).
-# Если DATA_DIR не задан — поведение как раньше, файл рядом с проектом.
-_DATA_DIR = Path(os.getenv("DATA_DIR")) if os.getenv("DATA_DIR") else Path(__file__).resolve().parent.parent
-_DATA_DIR.mkdir(parents=True, exist_ok=True)
-DB_PATH = _DATA_DIR / "orders.db"
-DATABASE_URL = f"sqlite+aiosqlite:///{DB_PATH}"
+# На Vercel файловая система полностью read-only (кроме /tmp, который не
+# сохраняется между вызовами функции) — файловый SQLite там в принципе
+# не может писаться. На Render free-плане диск тоже эфемерный.
+# Поэтому: если задан DATABASE_URL (например, Neon Postgres через Vercel
+# Marketplace) — используем его. Если нет — работаем на локальном файле
+# SQLite, как раньше (для разработки на своей машине).
+_raw_url = (
+    os.getenv("DATABASE_URL")
+    or os.getenv("POSTGRES_URL")
+    or os.getenv("POSTGRES_PRISMA_URL")
+    or os.getenv("POSTGRES_URL_NON_POOLING")
+)
+connect_args = {}
 
-engine = create_async_engine(DATABASE_URL, echo=False)
+if _raw_url:
+    # Neon/Vercel отдают строку вида postgres://user:pass@host/db?sslmode=require —
+    # для asyncpg нужен диалект postgresql+asyncpg://, а sslmode в query string
+    # понимает libpq/psycopg, но не asyncpg — переносим его в connect_args.
+    if _raw_url.startswith("postgres://"):
+        _raw_url = _raw_url.replace("postgres://", "postgresql+asyncpg://", 1)
+    elif _raw_url.startswith("postgresql://") and "+asyncpg" not in _raw_url:
+        _raw_url = _raw_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+    parts = urlsplit(_raw_url)
+    query = dict(parse_qsl(parts.query))
+    sslmode = query.pop("sslmode", None)
+    DATABASE_URL = urlunsplit(parts._replace(query=urlencode(query)))
+    if sslmode and sslmode != "disable":
+        connect_args = {"ssl": True}
+else:
+    _DATA_DIR = Path(os.getenv("DATA_DIR")) if os.getenv("DATA_DIR") else Path(__file__).resolve().parent.parent
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+    DB_PATH = _DATA_DIR / "orders.db"
+    DATABASE_URL = f"sqlite+aiosqlite:///{DB_PATH}"
+
+engine = create_async_engine(DATABASE_URL, echo=False, connect_args=connect_args)
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
-# created_at хранится в UTC (SQLite CURRENT_TIMESTAMP), а бизнес живёт
-# в Перми — это тот же часовой пояс, что и Екатеринбург (UTC+5).
-# Раньше "сегодня" считалось через SQLite date('now'), которое отдаёт
-# UTC-дату — из-за этого граница суток сдвигалась на 5 часов вперёд
-# относительно локального времени: ночью по местному времени сервер
-# ещё жил "вчерашним" UTC-днём, и выручка не обнулялась вовремя.
+# created_at хранится в UTC (у Postgres — timestamp без TZ, считаем как UTC),
+# а бизнес живёт в Перми — это тот же часовой пояс, что и Екатеринбург (UTC+5).
 BUSINESS_TZ = ZoneInfo("Asia/Yekaterinburg")
 
 
@@ -55,6 +77,8 @@ async def init_db():
             await conn.execute(text("ALTER TABLE menu_items ADD COLUMN image_url VARCHAR(500)"))
     except Exception:
         pass  # колонка уже существует
+
+
 async def save_order(order_data: dict) -> int:
     """Сохраняет заказ в БД"""
     async with AsyncSessionLocal() as session:
