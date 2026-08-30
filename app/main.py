@@ -29,7 +29,7 @@ async def lifespan(app: FastAPI):
     await init_bot()
     yield
 
-app = FastAPI(title="Шаурмечная", lifespan=lifespan)
+app = FastAPI(title="Шаурмечная", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 
 # Фото товаров теперь хранятся не тут, а в Cloudinary (см. /api/upload-image) —
 # на бесплатном плане Render локальный диск эфемерный и стирается при
