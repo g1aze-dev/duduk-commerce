@@ -556,7 +556,7 @@
     <div class="feature-card">
       <div class="feature-icon">📍</div>
       <div class="feature-title">Удобно</div>
-      <div class="feature-desc">Принимаем заказы круглосуточно. Оплата при получении наличными или картой.</div>
+      <div class="feature-desc">Принимаем заказы с 10:00 до 21:00. Оплата при получении наличными или картой.</div>
     </div>
   </div>
 </section>
@@ -1088,6 +1088,34 @@ function setError(field, msg) {
   document.getElementById('err-'+field).textContent = msg;
 }
 
+// ─── PHONE (RU) ──────────────────────────────────────────
+// Мобильный номер РФ: код страны 7, затем 9XX и ещё 7 цифр — итого
+// 11 цифр, начинающихся с "79". Старая проверка (10-15 произвольных
+// цифр) пропускала что угодно, включая заведомо нероссийские номера.
+function normalizeRuPhone(raw) {
+  let digits = raw.replace(/\D/g, ''); // оставляем только цифры
+  if (digits.length === 11 && (digits[0] === '8' || digits[0] === '7')) {
+    digits = '7' + digits.slice(1); // 8XXXXXXXXXX -> 7XXXXXXXXXX
+  } else if (digits.length === 10) {
+    digits = '7' + digits;          // 9XXXXXXXXX -> 79XXXXXXXXX
+  }
+  return digits;
+}
+
+function isValidRuPhone(raw) {
+  const digits = normalizeRuPhone(raw);
+  return /^79\d{9}$/.test(digits);
+}
+
+// ─── MIN ORDER TOTAL ─────────────────────────────────────
+// То же число, что и MIN_ORDER_TOTAL в app/routers/orders.py. Проверка
+// тут только для UX — окончательное решение всё равно принимает сервер.
+const MIN_ORDER_TOTAL = 400;
+
+function getOrderTotal() {
+  return cartTotal() + getDopingTotal();
+}
+
 // ─── SUBMIT ──────────────────────────────────────────────
 async function submitOrder() {
   clearErrors();
@@ -1098,14 +1126,24 @@ async function submitOrder() {
 
   let ok = true;
   if (!name) { setError('name', 'Введите ваше имя'); ok = false; }
-  if (!phone || !/^\+?[0-9]{10,15}$/.test(phone.replace(/[\s\-\(\)]/g,''))) {
-    setError('phone', 'Введите корректный номер телефона'); ok = false;
+  if (!isValidRuPhone(phone)) {
+    setError('phone', 'Введите корректный российский номер (+7 9XX XXX-XX-XX)'); ok = false;
   }
   if (deliveryType === 'delivery' && !address) { setError('address', 'Введите адрес доставки'); ok = false; }
   if (!ok) return;
 
+  // Проверка минимальной суммы — до отправки на сервер, чтобы сразу
+  // показать, сколько ещё нужно добавить в корзину.
+  const orderTotal = getOrderTotal();
+  if (orderTotal < MIN_ORDER_TOTAL) {
+    showToast(`Минимальная сумма заказа — ${MIN_ORDER_TOTAL} ₽. Добавьте ещё на ${MIN_ORDER_TOTAL - orderTotal} ₽`, 'error');
+    return;
+  }
+
   const btn = document.getElementById('submit-btn');
   btn.textContent = 'Отправляем…'; btn.disabled = true;
+
+  const normalizedPhone = '+' + normalizeRuPhone(phone);
 
   const timeComment = selectedTime === 'asap' ? '' : `Время: через ${selectedTime} мин. `;
   const payComment = `Оплата: ${selectedPayment === 'cash' ? 'наличными' : 'картой'}. `;
@@ -1113,7 +1151,7 @@ async function submitOrder() {
 
   const body = {
     customer_name: name,
-    phone: phone.replace(/[\s\-\(\)]/g,''),
+    phone: normalizedPhone,
     address: deliveryType === 'delivery' ? address : 'Самовывоз',
     items: [...cart.map(c => ({ item_id: c.menu_item_id, quantity: c.qty })), ...getDopingItems()],
     comment: [timeComment, payComment, typeComment, comment].filter(Boolean).join('').trim()

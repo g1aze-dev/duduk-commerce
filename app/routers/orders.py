@@ -16,6 +16,10 @@ ORDER_RATE_LIMIT = 5          # заказов
 ORDER_RATE_WINDOW = 60        # за это окно, секунд
 _order_timestamps: dict[str, list[float]] = {}
 
+# Минимальная сумма заказа для доставки. Проверяется на сервере (а не
+# только в интерфейсе), чтобы это нельзя было обойти прямым запросом к API.
+MIN_ORDER_TOTAL = 400
+
 
 def _client_ip(request: Request) -> str:
     fwd = request.headers.get("x-forwarded-for")
@@ -69,6 +73,14 @@ async def create_order(order: OrderCreate, request: Request):
             "price": menu_item["price"],
             "quantity": order_item.quantity,
         })
+
+    # Минимальная сумма заказа — считаем ПОСЛЕ пересчёта total на сервере,
+    # а не по тому, что прислал клиент, иначе порог можно обойти.
+    if total < MIN_ORDER_TOTAL:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Минимальная сумма заказа — {MIN_ORDER_TOTAL} ₽. Ваша сумма: {total} ₽.",
+        )
 
     order_id = await save_order({
         "customer_name": order.customer_name,
