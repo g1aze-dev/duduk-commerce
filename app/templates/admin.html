@@ -173,6 +173,8 @@
     .action-btn.complete:hover { background: rgba(45,206,137,0.25); }
     .action-btn.cancel { background: rgba(232,71,42,0.1); color: var(--accent2); border: 1px solid rgba(232,71,42,0.2); }
     .action-btn.cancel:hover { background: rgba(232,71,42,0.2); }
+    .action-btn.delete { background: rgba(122,117,110,0.15); color: var(--muted); border: 1px solid var(--border); }
+    .action-btn.delete:hover { background: rgba(232,71,42,0.15); color: var(--accent2); border-color: rgba(232,71,42,0.3); }
     .action-btn.call { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
     .action-btn.call:hover { border-color: var(--accent); }
     .order-time { color: var(--muted); font-size: 0.75rem; margin-left: auto; align-self: center; white-space: nowrap; }
@@ -844,11 +846,16 @@ function orderCard(o) {
 
   const commentHtml = o.comment ? `<div class="order-comment">💬 ${escHtml(o.comment)}</div>` : '';
 
-  const actionsHtml = o.status === 'new' ? `
+  // Кнопка безвозвратного удаления — доступна в любом статусе, в отличие
+  // от "Отменить", которая работает только для новых заказов и просто
+  // меняет статус, не стирая запись из базы.
+  const deleteForeverBtn = `<button class="action-btn delete" onclick="deleteOrderForever(${o.id})">🗑 Удалить</button>`;
+
+  const actionsHtml = (o.status === 'new' ? `
     <button class="action-btn complete" onclick="completeOrder(${o.id})">✓ Готово</button>
     <button class="action-btn cancel" onclick="cancelOrder(${o.id})">✕ Отменить</button>
     <a class="action-btn call" href="tel:${o.phone}">📞 Позвонить</a>
-  ` : `<a class="action-btn call" href="tel:${o.phone}">📞 Позвонить</a>`;
+  ` : `<a class="action-btn call" href="tel:${o.phone}">📞 Позвонить</a>`) + deleteForeverBtn;
 
   return `
     <div class="order-card ${o.status}" id="order-${o.id}">
@@ -918,6 +925,16 @@ async function cancelOrder(id) {
     renderOrders();
     showToast(`Заказ #${id} отменён`, 'info');
     loadAll();
+  } catch(e) { showToast('Ошибка: ' + e.message, 'error'); }
+}
+
+async function deleteOrderForever(id) {
+  if (!confirm(`Удалить заказ #${id} безвозвратно из базы? Это действие нельзя отменить.`)) return;
+  try {
+    await apiAction(`/api/admin/order/${id}/delete`, 'DELETE');
+    allOrders = allOrders.filter(o => o.id !== id);
+    renderOrders();
+    showToast(`Заказ #${id} удалён безвозвратно`, 'info');
   } catch(e) { showToast('Ошибка: ' + e.message, 'error'); }
 }
 

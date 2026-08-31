@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy import select, update, func, text
+from sqlalchemy import select, update, delete, func, text
 from .schemas import Base, Order
 import json
 from pathlib import Path
@@ -117,6 +117,19 @@ async def update_order_status(order_id: int, status: str):
         stmt = update(Order).where(Order.id == order_id).values(status=status)
         await session.execute(stmt)
         await session.commit()
+
+async def delete_order(order_id: int) -> bool:
+    """Безвозвратно удаляет заказ из БД (в отличие от update_order_status
+    со статусом 'cancelled', который лишь помечает заказ отменённым,
+    оставляя запись в истории)."""
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(Order).where(Order.id == order_id))
+        order = result.scalar_one_or_none()
+        if not order:
+            return False
+        await session.execute(delete(Order).where(Order.id == order_id))
+        await session.commit()
+        return True
 
 async def get_stats() -> dict:
     """Возвращает статистику (сегодня, активные)"""

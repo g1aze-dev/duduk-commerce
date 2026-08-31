@@ -891,7 +891,7 @@ function renderConstructorGrid() {
   grid.innerHTML = DOPINGS.map(d => `
     <button type="button" class="constructor-btn ${modalSelectedAddons.includes(d.id) ? 'selected' : ''}"
       id="cb-${d.id}" onclick="toggleAddon(${d.id})">
-      <span class="cb-icon">${d.emoji || '➕'}</span>
+      <span class="cb-icon">${d.image_url ? `<img src="${d.image_url}" style="width:28px;height:28px;border-radius:6px;object-fit:cover;">` : (d.emoji || '➕')}</span>
       <div>
         <div class="cb-name">${d.name}</div>
         <div class="cb-weight">${d.desc}</div>
@@ -1012,9 +1012,9 @@ function updateCartUI() {
           <div class="cart-item-price">${c.price} ₽ × ${c.qty}</div>
         </div>
         <div class="qty-control">
-          <button class="qty-btn" onclick="removeFromCart(${idStr})">−</button>
+          <button class="qty-btn" onclick='removeFromCart(${idStr})'>−</button>
           <span class="qty-num">${c.qty}</span>
-          <button class="qty-btn" onclick="addToCartDirect(${idStr})">+</button>
+          <button class="qty-btn" onclick='addToCartDirect(${idStr})'>+</button>
         </div>
       </div>
     `}).join('');

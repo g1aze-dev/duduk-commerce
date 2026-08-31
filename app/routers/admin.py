@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends
-from ..database import get_orders, update_order_status, get_stats, _local_day_bounds_utc
+from fastapi import APIRouter, Depends, HTTPException
+from ..database import get_orders, update_order_status, delete_order, get_stats, _local_day_bounds_utc
 from ..auth import verify_admin
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -28,5 +28,14 @@ async def complete_order(order_id: int, _=Depends(verify_admin)):
 
 @router.delete("/order/{order_id}")
 async def cancel_order(order_id: int, _=Depends(verify_admin)):
+    """Мягкая отмена — заказ остаётся в базе со статусом 'cancelled'."""
     await update_order_status(order_id, "cancelled")
+    return {"status": "ok"}
+
+@router.delete("/order/{order_id}/delete")
+async def remove_order(order_id: int, _=Depends(verify_admin)):
+    """Настоящее (безвозвратное) удаление заказа из базы."""
+    ok = await delete_order(order_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Заказ не найден")
     return {"status": "ok"}
