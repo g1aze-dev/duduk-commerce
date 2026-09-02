@@ -44,6 +44,11 @@ class MenuItem(Base):
     image_url: Mapped[str] = mapped_column(String(500), nullable=True, default=None)
     badge: Mapped[str] = mapped_column(String(50), nullable=True)
     available: Mapped[bool] = mapped_column(default=True)
+    # Раньше "можно ли настроить блюдо" вычислялось на фронте по категории
+    # (жёстко: шаурма/горячее — да, остальное — нет, плюс отдельное
+    # исключение для картофеля фри). Теперь это явный флаг, который
+    # задаёт админ для каждого блюда отдельно — гибче и без правок кода.
+    customizable: Mapped[bool] = mapped_column(default=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
 
     def to_dict(self):
@@ -57,5 +62,34 @@ class MenuItem(Base):
             "image_url": self.image_url or None,
             "badge": self.badge,
             "available": self.available,
+            "customizable": self.customizable,
+            "sort_order": self.sort_order,
+        }
+
+class Category(Base):
+    __tablename__ = "categories"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    # slug — то, что раньше было хардкодным значением в MenuItem.category
+    # ("shawarma", "hot", ...). Уникален, используется для связи с блюдами.
+    slug: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
+    icon_url: Mapped[str] = mapped_column(String(500), nullable=True, default=None)
+    emoji: Mapped[str] = mapped_column(String(10), nullable=True, default="🌯")
+    # Категории вроде "Добавки" — не самостоятельный раздел меню, а список
+    # допов для конструктора/оформления заказа. Раньше это было зашито
+    # в код как строка "dopings"; теперь это флаг, который можно поставить
+    # любой новой категории такого же назначения.
+    is_addon: Mapped[bool] = mapped_column(default=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "slug": self.slug,
+            "icon_url": self.icon_url,
+            "emoji": self.emoji or "🌯",
+            "is_addon": self.is_addon,
             "sort_order": self.sort_order,
         }

@@ -4,8 +4,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from contextlib import asynccontextmanager
 from pathlib import Path
-from .database import init_db, init_menu
-from .routers import orders, admin, menu as menu_router
+from .database import init_db, init_menu, init_categories
+from .routers import orders, admin, menu as menu_router, categories
 from .bot import init_bot
 from .auth import verify_admin
 from .config import ADMIN_PATH, CLOUDINARY_CONFIGURED
@@ -25,11 +25,18 @@ TEMPLATES_DIR = BASE_DIR / "app" / "templates"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    await init_categories()
     await init_menu()
     await init_bot()
     yield
 
-app = FastAPI(title="Шаурмечная", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+app = FastAPI(
+    title="Шаурмечная",
+    lifespan=lifespan,
+    docs_url=None,       # отключает /docs (Swagger UI)
+    redoc_url=None,      # отключает /redoc
+    openapi_url=None,    # отключает /openapi.json
+)
 
 # Фото товаров теперь хранятся не тут, а в Cloudinary (см. /api/upload-image) —
 # на бесплатном плане Render локальный диск эфемерный и стирается при
@@ -57,6 +64,7 @@ async def health():
 app.include_router(orders.router)
 app.include_router(admin.router)
 app.include_router(menu_router.router)
+app.include_router(categories.router)
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):

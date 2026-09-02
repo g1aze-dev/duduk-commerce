@@ -525,10 +525,6 @@
   </div>
   <div class="filters" id="filters">
     <button class="filter-btn active" onclick="filterMenu('all', this)">Всё меню</button>
-    <button class="filter-btn" onclick="filterMenu('shawarma', this)">🌯 Шаурма</button>
-    <button class="filter-btn" onclick="filterMenu('hot', this)">🔥 Горячие блюда</button>
-    <button class="filter-btn" onclick="filterMenu('drinks', this)">☕ Напитки</button>
-    <button class="filter-btn" onclick="filterMenu('kids', this)">🍦 Детское меню</button>
   </div>
   <div class="menu-grid" id="menu-grid">
     <div class="spinner"></div>
@@ -554,7 +550,7 @@
       <div class="feature-desc">Упаковка удерживает тепло 40 минут. Твоя шаурма приедет такой же вкусной.</div>
     </div>
     <div class="feature-card">
-      <div class="feature-icon">📍</div>
+      <div class="feature-icon">📍</div>\
       <div class="feature-title">Удобно</div>
       <div class="feature-desc">Принимаем заказы с 10:00 до 21:00. Оплата при получении наличными или картой.</div>
     </div>
@@ -714,6 +710,8 @@ function mnavGo(tab) {
 
 // ─── STATE ──────────────────────────────────────────────
 let MENU = [];
+let CATEGORIES = [];
+let ADDON_SLUGS = new Set(); // slugs категорий-допингов — раньше было хардкодное 'dopings'
 let DOPINGS = [];
 let selectedDopings = [];
 let cart = JSON.parse(localStorage.getItem('duduk_cart') || '[]');
@@ -732,10 +730,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadMenu() {
   try {
-    const res = await fetch('/api/menu');
-    MENU = await res.json();
+    const [menuRes, catRes] = await Promise.all([
+      fetch('/api/menu'),
+      fetch('/api/categories')
+    ]);
+    MENU = await menuRes.json();
+    CATEGORIES = await catRes.json();
+    ADDON_SLUGS = new Set(CATEGORIES.filter(c => c.is_addon).map(c => c.slug));
     // Populate DOPINGS from already-loaded data (no extra request needed)
-    DOPINGS = MENU.filter(m => m.category === 'dopings');
+    DOPINGS = MENU.filter(m => ADDON_SLUGS.has(m.category));
+    renderFilters();
     renderMenu();
     renderDopings();
   } catch(e) {
@@ -745,6 +749,28 @@ async function loadMenu() {
 }
 
 function restoreOrderStatus() {
+}
+
+// Возвращает эмодзи категории по её slug — используется как запасной
+// вариант, когда у самого блюда не задан emoji.
+function categoryEmoji(slug) {
+  const c = CATEGORIES.find(c => c.slug === slug);
+  return (c && c.emoji) || '🌯';
+}
+
+// Рендерит кнопки-фильтры категорий на витрине. Раньше список категорий
+// был захардкожен прямо в HTML — теперь приходит из /api/categories,
+// поэтому админ может добавлять/переименовывать/скрывать категории
+// без правок кода. Категории-допинги (is_addon) сюда не попадают —
+// у них никогда не было отдельной вкладки в меню.
+function renderFilters() {
+  const wrap = document.getElementById('filters');
+  const nonAddon = CATEGORIES.filter(c => !c.is_addon).sort((a,b) => a.sort_order - b.sort_order);
+  const iconHtml = c => c.icon_url
+    ? `<img src="${c.icon_url}" style="width:16px;height:16px;object-fit:cover;border-radius:4px;vertical-align:-3px;margin-right:4px;">`
+    : (c.emoji ? c.emoji + ' ' : '');
+  wrap.innerHTML = '<button class="filter-btn active" onclick="filterMenu(\'all\', this)">Всё меню</button>' +
+    nonAddon.map(c => `<button class="filter-btn" onclick="filterMenu('${c.slug}', this)">${iconHtml(c)}${c.name}</button>`).join('');
 }
 
 // ─── MENU ────────────────────────────────────────────────
@@ -759,17 +785,18 @@ function renderMenu() {
   const grid = document.getElementById('menu-grid');
   // Допинги (добавки) — не самостоятельная позиция меню, их выбирают
   // только в конструкторе блюда или на шаге оформления заказа.
-  const base = MENU.filter(m => m.category !== 'dopings');
+  const base = MENU.filter(m => !ADDON_SLUGS.has(m.category));
   const items = currentFilter === 'all' ? base : base.filter(m => m.category === currentFilter);
   if (items.length === 0) {
+
     grid.innerHTML = '<div style="color:var(--muted);text-align:center;padding:60px 20px;grid-column:1/-1;">В этой категории пока ничего нет</div>';
     return;
   }
   grid.innerHTML = items.map(item => {
-    // У картофеля фри не бывает "начинки" — конструктор с топпингами
-    // ему не нужен, кладём сразу в корзину, как и напитки/детское меню.
-    const isFries = item.name.trim().toLowerCase() === 'картофель фри';
-    const hasConstructor = (item.category === 'shawarma' || item.category === 'hot') && !isFries;
+    // Раньше "можно ли настроить блюдо" угадывалось по категории плюс
+    // отдельное исключение для картофеля фри по названию. Теперь это
+    // явный флаг customizable, который задаёт админ для каждого блюда.
+    const hasConstructor = !!item.customizable;
     const clickFn = hasConstructor ? `openItemModal(${item.id})` : `addToCart(${item.id})`;
     const btnIcon = hasConstructor ? '⚙️' : '+';
     const btnTitle = hasConstructor ? 'Настроить' : 'В корзину';
@@ -777,7 +804,7 @@ function renderMenu() {
     <div class="menu-card" onclick="${clickFn}">
       <div class="card-img">
         ${item.badge ? `<span class="card-badge">${item.badge}</span>` : ''}
-        ${item.image_url ? `<img src="${item.image_url}" alt="${item.name}" loading="lazy">` : `<span>${item.emoji || '🌯'}</span>`}
+        ${item.image_url ? `<img src="${item.image_url}" alt="${item.name}" loading="lazy">` : `<span>${item.emoji || categoryEmoji(item.category)}</span>`}
       </div>
       <div class="card-body">
         <div class="card-name">${item.name}</div>
@@ -797,7 +824,7 @@ async function fetchDopings() {
   try {
     const res = await fetch('/api/menu');
     const items = await res.json();
-    DOPINGS = items.filter(m => m.category === 'dopings');
+    DOPINGS = items.filter(m => ADDON_SLUGS.has(m.category));
     renderDopings();
   } catch(e) {}
 }

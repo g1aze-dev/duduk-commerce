@@ -535,6 +535,7 @@
     <div class="page-tabs-wrap" style="display:flex;gap:0;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:4px;width:fit-content;margin-bottom:28px;">
       <button class="tab active" id="ptab-orders" onclick="showPage('orders',this)" style="padding:10px 24px;">📋 Заказы</button>
       <button class="tab" id="ptab-menu" onclick="showPage('menu',this)" style="padding:10px 24px;">🌯 Меню</button>
+      <button class="tab" id="ptab-categories" onclick="showPage('categories',this)" style="padding:10px 24px;">🏷️ Категории</button>
     </div>
 
     <!-- ── ORDERS PAGE ── -->
@@ -567,15 +568,24 @@
         </div>
         <button class="action-btn complete" onclick="openItemModal(null)" style="padding:11px 22px;font-size:0.88rem;">+ Добавить позицию</button>
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px;">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px;" id="menu-filter-bar">
         <button class="filter-btn-admin active" onclick="setMenuFilter('all',this)">Все</button>
-        <button class="filter-btn-admin" onclick="setMenuFilter('shawarma',this)">🌯 Шаурма</button>
-        <button class="filter-btn-admin" onclick="setMenuFilter('hot',this)">🍖 Горячие</button>
-        <button class="filter-btn-admin" onclick="setMenuFilter('drinks',this)">🥤 Напитки</button>
-        <button class="filter-btn-admin" onclick="setMenuFilter('kids',this)">👶 Детское</button>
-        <button class="filter-btn-admin" onclick="setMenuFilter('dopings',this)">➕ Добавки</button>
       </div>
       <div id="menu-admin-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;">
+        <div class="spinner"></div>
+      </div>
+    </div>
+
+    <!-- ── CATEGORIES PAGE ── -->
+    <div id="page-categories" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+        <div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:0.04em;">Категории меню</div>
+          <div style="color:var(--muted);font-size:0.82rem;margin-top:2px;">Добавляйте разделы меню и стикеры для них — без правок кода</div>
+        </div>
+        <button class="action-btn complete" onclick="openCategoryModal(null)" style="padding:11px 22px;font-size:0.88rem;">+ Добавить категорию</button>
+      </div>
+      <div id="categories-admin-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;">
         <div class="spinner"></div>
       </div>
     </div>
@@ -614,11 +624,7 @@
       <div>
         <label class="form-label">Категория *</label>
         <select id="m-category" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-family:'Montserrat',sans-serif;width:100%;outline:none;font-size:0.9rem;">
-          <option value="shawarma">🌯 Шаурма</option>
-          <option value="hot">🍖 Горячие блюда</option>
-          <option value="drinks">🥤 Напитки</option>
-          <option value="kids">👶 Детское меню</option>
-          <option value="dopings">➕ Добавки</option>
+          <!-- заполняется динамически в populateCategorySelect() из /api/categories -->
         </select>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
@@ -642,10 +648,74 @@
           <div style="color:var(--muted);font-size:0.75rem;">Если выключено — скрыто от клиентов</div>
         </div>
       </label>
+      <label style="display:flex;align-items:center;gap:12px;cursor:pointer;padding:14px;background:var(--surface2);border-radius:10px;border:1px solid var(--border);">
+        <input type="checkbox" id="m-customizable" style="width:18px;height:18px;accent-color:var(--accent);flex-shrink:0;">
+        <div>
+          <div style="font-weight:600;font-size:0.88rem;">Можно настроить блюдо</div>
+          <div style="color:var(--muted);font-size:0.75rem;">Кнопка «⚙️ Настроить» (добавки, ингредиенты) у этой позиции на сайте</div>
+        </div>
+      </label>
       <div id="modal-err" style="color:var(--accent2);font-size:0.82rem;display:none;padding:8px 12px;background:rgba(232,71,42,0.08);border-radius:8px;"></div>
       <div style="display:flex;gap:10px;margin-top:4px;">
         <button class="action-btn complete" id="modal-save-btn" onclick="saveItem()" style="flex:1;justify-content:center;padding:13px;">Сохранить</button>
         <button onclick="closeModal()" style="padding:13px 20px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:8px;cursor:pointer;font-family:'Montserrat',sans-serif;font-weight:600;font-size:0.82rem;transition:all 0.2s;">Отмена</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── CATEGORY MODAL ── -->
+<div id="category-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:300;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:32px;width:min(480px,100%);margin:auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;letter-spacing:0.05em;" id="cat-modal-title">Новая категория</div>
+      <button class="close-btn" onclick="closeCategoryModal()">✕</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div>
+        <label class="form-label">Название *</label>
+        <input class="form-input" id="cat-name" placeholder="Десерты" oninput="autoSlug()">
+      </div>
+      <div>
+        <label class="form-label">Slug (техническое имя) *</label>
+        <input class="form-input" id="cat-slug" placeholder="desserts" style="font-family:monospace;">
+        <div style="color:var(--muted);font-size:0.75rem;margin-top:4px;">Только латиница, цифры, - и _. Блюда привязаны к категории именно по этому значению — меняйте с осторожностью.</div>
+      </div>
+      <div>
+        <label class="form-label">Стикер категории</label>
+        <div id="cat-img-upload-area" style="border:2px dashed var(--border);border-radius:12px;padding:16px;text-align:center;cursor:pointer;transition:border-color 0.2s;position:relative;" onclick="document.getElementById('cat-image-file').click()">
+          <div id="cat-img-preview-wrap" style="display:none;margin-bottom:10px;">
+            <img id="cat-img-preview" src="" alt="" style="max-height:80px;max-width:100%;border-radius:8px;object-fit:cover;">
+          </div>
+          <div id="cat-img-placeholder" style="color:var(--muted);font-size:0.85rem;">
+            <div style="font-size:2rem;margin-bottom:4px;">📷</div>
+            <div>Нажмите чтобы загрузить стикер</div>
+            <div style="font-size:0.75rem;margin-top:2px;">Необязательно — можно оставить эмодзи ниже</div>
+          </div>
+          <input type="file" id="cat-image-file" accept="image/*" style="display:none" onchange="handleCategoryImageSelect(event)">
+        </div>
+        <div id="cat-img-upload-status" style="font-size:0.78rem;color:var(--muted);margin-top:6px;display:none;"></div>
+        <input type="hidden" id="cat-icon-url" value="">
+        <button type="button" id="cat-img-remove-btn" style="display:none;margin-top:6px;background:transparent;border:1px solid var(--border);border-radius:8px;padding:4px 12px;color:var(--muted);cursor:pointer;font-size:0.78rem;" onclick="removeCategoryImage()">✕ Удалить стикер</button>
+      </div>
+      <div>
+        <label class="form-label">Эмодзи (запасной вариант, если нет стикера)</label>
+        <input class="form-input" id="cat-emoji" placeholder="🍰" maxlength="4">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label class="form-label">Порядок сортировки</label>
+          <input class="form-input" id="cat-sort" type="number" value="0">
+        </div>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:11px 14px;background:var(--surface2);border-radius:10px;border:1px solid var(--border);margin-top:22px;">
+          <input type="checkbox" id="cat-is-addon" style="width:16px;height:16px;accent-color:var(--accent);flex-shrink:0;">
+          <div style="font-size:0.8rem;font-weight:600;">Это допинги/добавки</div>
+        </label>
+      </div>
+      <div id="cat-modal-err" style="color:var(--accent2);font-size:0.82rem;display:none;padding:8px 12px;background:rgba(232,71,42,0.08);border-radius:8px;"></div>
+      <div style="display:flex;gap:10px;margin-top:4px;">
+        <button class="action-btn complete" id="cat-modal-save-btn" onclick="saveCategory()" style="flex:1;justify-content:center;padding:13px;">Сохранить</button>
+        <button onclick="closeCategoryModal()" style="padding:13px 20px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:8px;cursor:pointer;font-family:'Montserrat',sans-serif;font-weight:600;font-size:0.82rem;transition:all 0.2s;">Отмена</button>
       </div>
     </div>
   </div>
@@ -666,6 +736,12 @@ let currentFilter = 'all';
 let allOrders = [];
 let previousNewCount = 0;
 let lockInterval = null;
+// Раньше карточка заказа сворачивалась сама через ~15 сек — потому что
+// авто-обновление (loadAll -> renderOrders) каждый раз перегенерирует
+// весь innerHTML списка, а класс "open" жил только в DOM и стирался при
+// перерисовке. Теперь состояние "развёрнут/свёрнут" хранится отдельно
+// и переживает любое количество авто-обновлений.
+let expandedOrders = new Set();
 
 function isLocked() { return Date.now() < lockedUntil; }
 
@@ -874,7 +950,7 @@ function orderCard(o) {
           <span class="order-time">${timeAgo}</span>
         </div>
       </div>
-      <div class="order-body" id="body-${o.id}">
+      <div class="order-body ${expandedOrders.has(o.id) ? 'open' : ''}" id="body-${o.id}">
         <div class="order-items-list">${itemsHtml}</div>
         ${commentHtml}
         <div class="order-actions">${actionsHtml}</div>
@@ -886,6 +962,8 @@ function orderCard(o) {
 function toggleOrder(id) {
   const body = document.getElementById('body-' + id);
   body.classList.toggle('open');
+  if (body.classList.contains('open')) expandedOrders.add(id);
+  else expandedOrders.delete(id);
 }
 
 function escHtml(str) {
@@ -933,6 +1011,7 @@ async function deleteOrderForever(id) {
   try {
     await apiAction(`/api/admin/order/${id}/delete`, 'DELETE');
     allOrders = allOrders.filter(o => o.id !== id);
+    expandedOrders.delete(id);
     renderOrders();
     showToast(`Заказ #${id} удалён безвозвратно`, 'info');
   } catch(e) { showToast('Ошибка: ' + e.message, 'error'); }
@@ -1005,14 +1084,17 @@ function updateAdminNewBadge(count) {
 function showPage(page, btn) {
   document.getElementById('page-orders').style.display = page === 'orders' ? '' : 'none';
   document.getElementById('page-menu').style.display = page === 'menu' ? '' : 'none';
+  document.getElementById('page-categories').style.display = page === 'categories' ? '' : 'none';
   document.querySelectorAll('[id^="ptab-"]').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   if (page === 'menu') loadMenuAdmin();
+  if (page === 'categories') loadCategoriesAdmin();
   // stop auto-refresh for orders while on menu tab
 }
 
 // ─── MENU ADMIN ──────────────────────────────────────────
 let allMenuItems = [];
+let allCategories = [];
 let menuFilter = 'all';
 let editingItemId = null;
 
@@ -1020,11 +1102,41 @@ async function loadMenuAdmin() {
   const grid = document.getElementById('menu-admin-grid');
   grid.innerHTML = '<div class="spinner"></div>';
   try {
-    allMenuItems = await apiGet('/api/menu/all');
+    const [items, cats] = await Promise.all([
+      apiGet('/api/menu/all'),
+      apiGet('/api/categories')
+    ]);
+    allMenuItems = items;
+    allCategories = cats;
+    renderMenuFilterBar();
+    populateCategorySelect();
     renderMenuAdmin();
   } catch(e) {
     grid.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div>Ошибка загрузки меню</div></div>`;
   }
+}
+
+// Раньше кнопки-фильтры категорий в админке (Шаурма/Горячие/...) были
+// захардкожены в HTML. Теперь список категорий приходит из /api/categories,
+// поэтому админ может добавлять/переименовывать/удалять их через вкладку
+// "Категории", и фильтр здесь перестраивается сам.
+function renderMenuFilterBar() {
+  const bar = document.getElementById('menu-filter-bar');
+  if (!bar) return;
+  const sorted = [...allCategories].sort((a,b) => a.sort_order - b.sort_order);
+  bar.innerHTML = '<button class="filter-btn-admin active" onclick="setMenuFilter(\'all\',this)">Все</button>' +
+    sorted.map(c => `<button class="filter-btn-admin" onclick="setMenuFilter('${c.slug}',this)">${c.emoji || ''} ${escHtml(c.name)}</button>`).join('');
+}
+
+// Заполняет выпадающий список категорий в модалке блюда — раньше там
+// были захардкожены 5 <option>, теперь список из тех же /api/categories.
+function populateCategorySelect() {
+  const select = document.getElementById('m-category');
+  if (!select) return;
+  const current = select.value;
+  const sorted = [...allCategories].sort((a,b) => a.sort_order - b.sort_order);
+  select.innerHTML = sorted.map(c => `<option value="${c.slug}">${c.emoji || ''} ${escHtml(c.name)}</option>`).join('');
+  if (sorted.some(c => c.slug === current)) select.value = current;
 }
 
 function setMenuFilter(f, btn) {
@@ -1041,7 +1153,8 @@ function renderMenuAdmin() {
 
   const sorted = [...items].sort((a,b) => (a.sort_order||0) - (b.sort_order||0) || a.id - b.id);
 
-  const catLabel = { shawarma:'🌯 Шаурма', hot:'🍖 Горячие блюда', drinks:'🥤 Напитки', kids:'👶 Детское меню', dopings:'➕ Добавки' };
+  const catLabel = {};
+  allCategories.forEach(c => { catLabel[c.slug] = `${c.emoji || ''} ${c.name}`.trim(); });
   const total = allMenuItems.length;
   const visible = allMenuItems.filter(m => m.available).length;
 
@@ -1075,6 +1188,7 @@ function renderMenuAdmin() {
         <span class="badge-pill cat">${catLabel[item.category] || item.category}</span>
         ${item.badge ? `<span class="badge-pill label">${escHtml(item.badge)}</span>` : ''}
         <span class="badge-pill ${item.available ? 'is-visible' : 'is-hidden'}">${item.available ? 'Активно' : 'Скрыто'}</span>
+        ${item.customizable ? `<span class="badge-pill is-visible">⚙️ Настраиваемое</span>` : ''}
       </div>
       <div class="menu-item-bottom">
         <div class="menu-item-price">${item.price} ₽</div>
@@ -1094,17 +1208,19 @@ function openItemModal(id) {
   editingItemId = id;
   const modal = document.getElementById('modal-overlay');
   modal.style.display = 'flex';
+  populateCategorySelect();
 
   if (id === null) {
     // New item
     document.getElementById('modal-title').textContent = 'Новая позиция';
     resetImageUpload();
     document.getElementById('m-name').value = '';
-    document.getElementById('m-category').value = 'shawarma';
+    document.getElementById('m-category').value = allCategories[0] ? allCategories[0].slug : '';
     document.getElementById('m-price').value = '';
     document.getElementById('m-badge').value = '';
     document.getElementById('m-desc').value = '';
     document.getElementById('m-available').checked = true;
+    document.getElementById('m-customizable').checked = false;
     document.getElementById('modal-save-btn').textContent = 'Добавить';
   } else {
     // Edit existing
@@ -1119,6 +1235,7 @@ function openItemModal(id) {
     document.getElementById('m-badge').value = item.badge || '';
     document.getElementById('m-desc').value = item.desc || '';
     document.getElementById('m-available').checked = item.available;
+    document.getElementById('m-customizable').checked = !!item.customizable;
     document.getElementById('modal-save-btn').textContent = 'Сохранить';
   }
   document.getElementById('modal-err').style.display = 'none';
@@ -1153,6 +1270,7 @@ async function saveItem() {
     emoji: '🌯',
     image_url: document.getElementById('m-image-url').value || null,
     available: document.getElementById('m-available').checked,
+    customizable: document.getElementById('m-customizable').checked,
   };
 
   const btn = document.getElementById('modal-save-btn');
@@ -1308,6 +1426,240 @@ async function handleImageSelect(event) {
     status.textContent = '✗ ' + e.message;
   }
 }
+
+// ─── CATEGORIES ADMIN ──────────────────────────────────────
+let editingCategoryId = null;
+
+async function loadCategoriesAdmin() {
+  const grid = document.getElementById('categories-admin-grid');
+  grid.innerHTML = '<div class="spinner"></div>';
+  try {
+    allCategories = await apiGet('/api/categories');
+    renderCategoriesAdmin();
+  } catch(e) {
+    grid.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div>Ошибка загрузки категорий</div></div>`;
+  }
+}
+
+function renderCategoriesAdmin() {
+  const sorted = [...allCategories].sort((a,b) => a.sort_order - b.sort_order || a.id - b.id);
+  const grid = document.getElementById('categories-admin-grid');
+
+  if (sorted.length === 0) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">🏷️</div><div>Категорий пока нет</div></div>`;
+    return;
+  }
+
+  grid.innerHTML = sorted.map(c => `
+    <div class="menu-item-card">
+      <div class="menu-item-top">
+        <div class="menu-item-emoji-big">${c.icon_url ? `<img src="${c.icon_url}" alt="">` : escHtml(c.emoji || '🌯')}</div>
+        <div class="menu-item-meta">
+          <div class="menu-item-name">${escHtml(c.name)}</div>
+          <div class="menu-item-desc" style="font-family:monospace;">slug: ${escHtml(c.slug)}</div>
+        </div>
+      </div>
+      <div class="menu-item-badges">
+        ${c.is_addon ? `<span class="badge-pill label">➕ Допинги/добавки</span>` : `<span class="badge-pill cat">Раздел меню</span>`}
+      </div>
+      <div class="menu-item-bottom">
+        <div style="color:var(--muted);font-size:0.8rem;">Порядок: ${c.sort_order}</div>
+        <div class="menu-item-actions">
+          <button class="icon-btn" title="Редактировать" onclick="openCategoryModal(${c.id})">✏️</button>
+          <button class="icon-btn danger" title="Удалить" onclick="deleteCategoryAdmin(${c.id})">🗑</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Транслитерация кириллицы для автогенерации slug из названия —
+// избавляет от необходимости придумывать латинское имя вручную.
+const TRANSLIT_MAP = {а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'e',ж:'zh',з:'z',и:'i',й:'y',к:'k',л:'l',м:'m',н:'n',о:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',х:'h',ц:'c',ч:'ch',ш:'sh',щ:'sch',ъ:'',ы:'y',ь:'',э:'e',ю:'yu',я:'ya'};
+
+function autoSlug() {
+  // Автогенерация только для НОВОЙ категории — при редактировании менять
+  // существующий slug вручную безопаснее (на него уже могут ссылаться блюда).
+  if (editingCategoryId !== null) return;
+  const name = document.getElementById('cat-name').value;
+  const slug = name.trim().toLowerCase()
+    .split('').map(ch => TRANSLIT_MAP[ch] !== undefined ? TRANSLIT_MAP[ch] : ch).join('')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  document.getElementById('cat-slug').value = slug;
+}
+
+function openCategoryModal(id) {
+  editingCategoryId = id;
+  const modal = document.getElementById('category-modal-overlay');
+  modal.style.display = 'flex';
+  resetCategoryImageUpload();
+
+  if (id === null) {
+    document.getElementById('cat-modal-title').textContent = 'Новая категория';
+    document.getElementById('cat-name').value = '';
+    document.getElementById('cat-slug').value = '';
+    document.getElementById('cat-emoji').value = '🌯';
+    const maxSort = allCategories.reduce((m,c) => Math.max(m, c.sort_order||0), 0);
+    document.getElementById('cat-sort').value = maxSort + 1;
+    document.getElementById('cat-is-addon').checked = false;
+    document.getElementById('cat-modal-save-btn').textContent = 'Добавить';
+  } else {
+    const cat = allCategories.find(c => c.id === id);
+    if (!cat) return;
+    document.getElementById('cat-modal-title').textContent = 'Редактировать категорию';
+    if (cat.icon_url) setCategoryImagePreview(cat.icon_url);
+    document.getElementById('cat-name').value = cat.name;
+    document.getElementById('cat-slug').value = cat.slug;
+    document.getElementById('cat-emoji').value = cat.emoji || '';
+    document.getElementById('cat-sort').value = cat.sort_order;
+    document.getElementById('cat-is-addon').checked = cat.is_addon;
+    document.getElementById('cat-modal-save-btn').textContent = 'Сохранить';
+  }
+  document.getElementById('cat-modal-err').style.display = 'none';
+  document.getElementById('cat-name').focus();
+}
+
+function closeCategoryModal() {
+  document.getElementById('category-modal-overlay').style.display = 'none';
+  editingCategoryId = null;
+}
+
+document.getElementById('category-modal-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeCategoryModal();
+});
+
+function showCategoryModalErr(msg) {
+  const el = document.getElementById('cat-modal-err');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+async function saveCategory() {
+  const name = document.getElementById('cat-name').value.trim();
+  const slug = document.getElementById('cat-slug').value.trim().toLowerCase();
+  const errEl = document.getElementById('cat-modal-err');
+  errEl.style.display = 'none';
+
+  if (!name) { showCategoryModalErr('Введите название'); return; }
+  if (!/^[a-z0-9_-]+$/.test(slug)) { showCategoryModalErr('Slug: только латиница, цифры, - и _'); return; }
+
+  const payload = {
+    name,
+    slug,
+    icon_url: document.getElementById('cat-icon-url').value || null,
+    emoji: document.getElementById('cat-emoji').value.trim() || '🌯',
+    is_addon: document.getElementById('cat-is-addon').checked,
+    sort_order: parseInt(document.getElementById('cat-sort').value) || 0,
+  };
+
+  const btn = document.getElementById('cat-modal-save-btn');
+  btn.textContent = 'Сохраняем…'; btn.disabled = true;
+
+  try {
+    if (editingCategoryId === null) {
+      const created = await apiPost('/api/categories', payload);
+      allCategories.push(created);
+      showToast(`Категория "${created.name}" добавлена ✓`, 'success');
+    } else {
+      const updated = await apiPut(`/api/categories/${editingCategoryId}`, payload);
+      const idx = allCategories.findIndex(c => c.id === editingCategoryId);
+      if (idx !== -1) allCategories[idx] = updated;
+      showToast(`Категория "${updated.name}" обновлена ✓`, 'success');
+    }
+    closeCategoryModal();
+    renderCategoriesAdmin();
+    renderMenuFilterBar();
+    populateCategorySelect();
+  } catch(e) {
+    showCategoryModalErr('Ошибка: ' + e.message);
+  } finally {
+    btn.textContent = editingCategoryId === null ? 'Добавить' : 'Сохранить';
+    btn.disabled = false;
+  }
+}
+
+async function deleteCategoryAdmin(id) {
+  const cat = allCategories.find(c => c.id === id);
+  if (!cat) return;
+  if (!confirm(`Удалить категорию "${cat.name}"? Это действие нельзя отменить.`)) return;
+  try {
+    const res = await fetch(`/api/categories/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Basic ' + authToken }
+    });
+    if (res.status === 401) { logout(); return; }
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({detail:'Ошибка сервера'}));
+      throw new Error(err.detail || 'Ошибка');
+    }
+    allCategories = allCategories.filter(c => c.id !== id);
+    renderCategoriesAdmin();
+    renderMenuFilterBar();
+    populateCategorySelect();
+    showToast(`Категория "${cat.name}" удалена`, 'info');
+  } catch(e) { showToast('Ошибка: ' + e.message, 'error'); }
+}
+
+// ─── CATEGORY STICKER UPLOAD ─────────────────────────────
+function resetCategoryImageUpload() {
+  document.getElementById('cat-icon-url').value = '';
+  document.getElementById('cat-image-file').value = '';
+  document.getElementById('cat-img-preview-wrap').style.display = 'none';
+  document.getElementById('cat-img-placeholder').style.display = 'block';
+  document.getElementById('cat-img-remove-btn').style.display = 'none';
+  document.getElementById('cat-img-upload-status').style.display = 'none';
+  document.getElementById('cat-img-upload-area').style.borderColor = '';
+}
+
+function setCategoryImagePreview(url) {
+  document.getElementById('cat-img-preview').src = url;
+  document.getElementById('cat-img-preview-wrap').style.display = 'block';
+  document.getElementById('cat-img-placeholder').style.display = 'none';
+  document.getElementById('cat-img-remove-btn').style.display = 'inline-block';
+  document.getElementById('cat-icon-url').value = url;
+  document.getElementById('cat-img-upload-area').style.borderColor = 'var(--accent)';
+}
+
+function removeCategoryImage() {
+  resetCategoryImageUpload();
+}
+
+async function handleCategoryImageSelect(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) {
+    showCategoryModalErr('Файл слишком большой (максимум 5 МБ)');
+    return;
+  }
+  const status = document.getElementById('cat-img-upload-status');
+  status.style.display = 'block';
+  status.style.color = 'var(--muted)';
+  status.textContent = '⏳ Загрузка...';
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const resp = await fetch('/api/upload-image', {
+      method: 'POST',
+      headers: { 'Authorization': 'Basic ' + authToken },
+      body: formData
+    });
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.error || 'Ошибка загрузки');
+    }
+    const data = await resp.json();
+    setCategoryImagePreview(data.url);
+    status.style.color = '#4caf50';
+    status.textContent = '✓ Стикер загружен';
+    setTimeout(() => { status.style.display = 'none'; }, 2000);
+  } catch (e) {
+    status.style.color = 'var(--accent)';
+    status.textContent = '✗ ' + e.message;
+  }
+}
 </script>
 </body>
 </html>
+

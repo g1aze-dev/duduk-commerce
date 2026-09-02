@@ -61,6 +61,28 @@ class MenuItemCreate(BaseModel):
     image_url: Optional[str] = None
     badge: Optional[str] = None
     available: Optional[bool] = True
+    # Можно ли настроить блюдо (добавки/ингредиенты) — задаётся явно
+    # админом для каждой позиции, а не выводится из категории.
+    customizable: Optional[bool] = False
 
 class MenuItemUpdate(MenuItemCreate):
+    pass
+
+class CategoryCreate(BaseModel):
+    name: constr(min_length=1, max_length=100)
+    slug: constr(min_length=1, max_length=50)
+    icon_url: Optional[str] = None
+    emoji: Optional[str] = "🌯"
+    is_addon: Optional[bool] = False
+    sort_order: Optional[int] = 0
+
+    @field_validator('slug')
+    def validate_slug(cls, v):
+        import re
+        v = v.strip().lower()
+        if not re.match(r'^[a-z0-9_-]+$', v):
+            raise ValueError('Слаг может содержать только латинские буквы (a-z), цифры, - и _')
+        return v
+
+class CategoryUpdate(CategoryCreate):
     pass
